@@ -163,6 +163,14 @@ export function moveAxis(meta: AxisTreeMeta, name: string, delta: -1 | 1): AxisT
   return { ...meta, axes }
 }
 
+/** Axis name -> number of files that have at least one path on it. */
+export function axisUsage(meta: AxisTreeMeta): Map<string, number> {
+  const counts = new Map<string, number>(meta.axes.map((a) => [a, 0]))
+  for (const cls of Object.values(meta.files))
+    for (const axis of Object.keys(cls)) counts.set(axis, (counts.get(axis) ?? 0) + 1)
+  return counts
+}
+
 /** Metadata keys that no longer correspond to a file on disk. */
 export function findOrphans(meta: AxisTreeMeta, existing: Set<string>): string[] {
   return Object.keys(meta.files).filter((rel) => !existing.has(rel))

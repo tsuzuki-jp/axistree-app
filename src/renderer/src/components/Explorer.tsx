@@ -1,6 +1,8 @@
 import { memo, useEffect, useMemo, useRef } from 'react'
 import {
+  CalendarDays,
   CalendarPlus,
+  ChevronDown,
   ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
@@ -10,6 +12,7 @@ import {
   Inbox,
   Search,
   Settings,
+  Tags,
   X
 } from 'lucide-react'
 import {
@@ -21,9 +24,11 @@ import {
   filterTree,
   type TreeFolder
 } from '@shared/tree'
+import { addAxis, axisUsage } from '@shared/meta'
 import type { FileEntry } from '@shared/types'
 import { expandKey, useApp, withAutoDates } from '../store'
 import { FileIcon } from './FileIcon'
+import { Dropdown, MenuAction, SearchMenu, type MenuItem } from './SearchMenu'
 import { IconButton } from './ui'
 
 export function Explorer() {
@@ -49,7 +54,7 @@ export function Explorer() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-panel">
-      <AxisTabs />
+      <AxisSwitcher />
       <div className="flex items-center gap-1 border-b border-line px-2 py-1.5">
         <label className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md bg-sunken px-2 text-muted focus-within:outline-2 focus-within:outline-accent">
           <Search className="size-3.5 shrink-0" />
@@ -78,40 +83,95 @@ export function Explorer() {
   )
 }
 
-function AxisTabs() {
-  const axes = useApp((s) => s.meta.axes)
+function AxisSwitcher() {
+  const meta = useApp((s) => s.meta)
   const activeAxis = useApp((s) => s.activeAxis)
   const setActiveAxis = useApp((s) => s.setActiveAxis)
+  const updateMeta = useApp((s) => s.updateMeta)
   const openDialog = useApp((s) => s.openDialog)
+  const usage = useMemo(() => axisUsage(meta), [meta])
 
-  const tab = (value: string, label: string, title: string, icon?: React.ReactNode) => {
-    const active = value === activeAxis
-    return (
-      <button
-        key={value}
-        role="tab"
-        aria-selected={active}
-        title={title}
-        onClick={() => setActiveAxis(value)}
-        className={`inline-flex h-6 max-w-[140px] items-center gap-1 rounded-md px-2 text-[12px] whitespace-nowrap transition-colors ${
-          active ? 'bg-accent text-accent-fg font-medium shadow-sm' : 'text-muted hover:bg-hover hover:text-fg'
-        }`}
-      >
-        {icon}
-        <span className="truncate">{label}</span>
-      </button>
+  const isFs = activeAxis === FS_AXIS
+  const axisIcon = (axis: string, cls = 'size-3.5'): React.ReactNode =>
+    axis === FS_AXIS ? (
+      <HardDrive className={cls} />
+    ) : axis === meta.settings.dateAxis ? (
+      <CalendarDays className={cls} />
+    ) : (
+      <Tags className={cls} />
     )
-  }
+
+  const items: MenuItem[] = [
+    ...meta.axes.map((axis) => ({
+      id: axis,
+      label: axis,
+      icon: axisIcon(axis),
+      detail: usage.get(axis) ?? 0,
+      checked: axis === activeAxis,
+      group: 'axes',
+      onSelect: () => setActiveAxis(axis)
+    })),
+    {
+      id: FS_AXIS,
+      label: '物理フォルダ',
+      icon: axisIcon(FS_AXIS),
+      checked: isFs,
+      group: 'fs',
+      onSelect: () => setActiveAxis(FS_AXIS)
+    }
+  ]
 
   return (
-    <div className="flex items-start gap-1 border-b border-line px-2 py-2">
-      <div role="tablist" aria-label="表示する分類軸" className="flex min-w-0 flex-1 flex-wrap gap-1">
-        {axes.map((a) => tab(a, a, `${a} 軸で表示`))}
-        {tab(FS_AXIS, '物理フォルダ', '実際のフォルダ構成で表示', <HardDrive className="size-3 shrink-0" />)}
+    <div className="flex items-center gap-1 border-b border-line px-2 py-2">
+      <div className="min-w-0 flex-1">
+        <Dropdown
+          trigger={({ open, toggle }) => (
+            <button
+              onClick={toggle}
+              aria-haspopup="listbox"
+              aria-expanded={open}
+              title="表示する分類軸を切り替え"
+              className={`flex h-8 w-full items-center gap-2 rounded-md border px-2 text-left transition-colors ${
+                open ? 'border-accent ring-2 ring-accent/20' : 'border-line hover:bg-hover'
+              }`}
+            >
+              <span className="text-accent">{axisIcon(activeAxis, 'size-4')}</span>
+              <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
+                {isFs ? '物理フォルダ' : activeAxis}
+              </span>
+              <span className="shrink-0 text-[11px] text-faint">
+                {isFs ? '' : `${meta.axes.indexOf(activeAxis) + 1} / ${meta.axes.length} 軸`}
+              </span>
+              <ChevronDown className={`size-3.5 shrink-0 text-muted transition-transform ${open ? 'rotate-180' : ''}`} />
+            </button>
+          )}
+        >
+          {(close) => (
+            <SearchMenu
+              items={items}
+              placeholder="分類軸を検索・新規作成"
+              onClose={close}
+              onCreate={(name) => {
+                updateMeta((m) => addAxis(m, name))
+                setActiveAxis(name)
+              }}
+              canCreate={(q) => !meta.axes.includes(q)}
+              createLabel={(q) => `「${q}」を新しい分類軸として追加`}
+              footer={
+                <MenuAction
+                  icon={<Settings className="size-3.5" />}
+                  onClick={() => {
+                    close()
+                    openDialog('settings')
+                  }}
+                >
+                  分類軸を管理…
+                </MenuAction>
+              }
+            />
+          )}
+        </Dropdown>
       </div>
-      <IconButton label="分類軸と設定" onClick={() => openDialog('settings')} className="-my-0.5">
-        <Settings className="size-3.5" />
-      </IconButton>
     </div>
   )
 }

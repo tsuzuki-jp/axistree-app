@@ -1,16 +1,16 @@
 import { useMemo, useState } from 'react'
-import { ChevronRight, Pencil, Plus, X } from 'lucide-react'
+import { CalendarDays, ChevronRight, Pencil, Plus, Settings, Tags, X } from 'lucide-react'
 import { dateToAxisPath, formatAxisPath } from '@shared/axisPath'
-import { addPath, removePathAt, replacePathAt } from '@shared/meta'
+import { addAxis, addPath, axisUsage, removePathAt, replacePathAt } from '@shared/meta'
 import type { AxisPath, FileEntry } from '@shared/types'
 import { formatDateTime, formatSize } from '../lib/format'
 import { useApp } from '../store'
 import { FileIcon } from './FileIcon'
 import { PathInput } from './PathInput'
+import { Dropdown, MenuAction, SearchMenu } from './SearchMenu'
 
 export function Inspector() {
   const file = useApp((s) => (s.selectedFile ? s.fileMap.get(s.selectedFile) : undefined))
-  const axes = useApp((s) => s.meta.axes)
 
   if (!file) {
     return (
@@ -28,11 +28,107 @@ export function Inspector() {
       <PaneTitle>分類</PaneTitle>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <FileSummary file={file} />
-        {axes.map((axis) => (
-          <AxisSection key={axis} axis={axis} file={file} />
-        ))}
+        <FileAxes key={file.relPath} file={file} />
       </div>
     </div>
+  )
+}
+
+/**
+ * Shows only the axes this file uses (plus the date axis), so the pane stays short no matter how
+ * many axes exist. Other axes are added from a searchable picker, which can also create new axes.
+ */
+function FileAxes({ file }: { file: FileEntry }) {
+  const meta = useApp((s) => s.meta)
+  const updateMeta = useApp((s) => s.updateMeta)
+  const openDialog = useApp((s) => s.openDialog)
+  const cls = meta.files[file.relPath]
+  // Axes stay visible for as long as this file is selected, even after their last path is removed.
+  const [pinned, setPinned] = useState(() => new Set(Object.keys(cls ?? {})))
+  const [justAdded, setJustAdded] = useState<string | null>(null)
+  const usage = useMemo(() => axisUsage(meta), [meta])
+
+  const visible = meta.axes.filter(
+    (a) => a === meta.settings.dateAxis || (cls?.[a]?.length ?? 0) > 0 || pinned.has(a)
+  )
+  const hidden = meta.axes.filter((a) => !visible.includes(a))
+
+  const show = (axis: string): void => {
+    setPinned((p) => new Set(p).add(axis))
+    setJustAdded(axis)
+  }
+  const dismiss = (axis: string): void => {
+    setPinned((p) => {
+      const next = new Set(p)
+      next.delete(axis)
+      return next
+    })
+    if (justAdded === axis) setJustAdded(null)
+  }
+
+  return (
+    <>
+      {visible.map((axis) => (
+        <AxisSection
+          key={axis}
+          axis={axis}
+          file={file}
+          autoFocus={axis === justAdded}
+          onDismiss={axis === meta.settings.dateAxis ? undefined : () => dismiss(axis)}
+        />
+      ))}
+      <div className="px-4 py-3">
+        <Dropdown
+          panelClassName="left-0 right-0"
+          trigger={({ open, toggle }) => (
+            <button
+              onClick={toggle}
+              aria-haspopup="listbox"
+              aria-expanded={open}
+              className={`flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-dashed text-[12px] transition-colors ${
+                open ? 'border-accent text-accent' : 'border-line text-muted hover:border-accent hover:text-accent'
+              }`}
+            >
+              <Plus className="size-3.5" />
+              分類軸を追加
+              {hidden.length > 0 && <span className="text-faint">（他 {hidden.length} 軸）</span>}
+            </button>
+          )}
+        >
+          {(close) => (
+            <SearchMenu
+              items={hidden.map((axis) => ({
+                id: axis,
+                label: axis,
+                icon: <Tags className="size-3.5" />,
+                detail: usage.get(axis) ?? 0,
+                onSelect: () => show(axis)
+              }))}
+              placeholder="分類軸を検索・新規作成"
+              emptyText={meta.axes.length === visible.length ? '名前を入力して新しい分類軸を作成' : '該当なし'}
+              onClose={close}
+              onCreate={(name) => {
+                updateMeta((m) => addAxis(m, name))
+                show(name)
+              }}
+              canCreate={(q) => !meta.axes.includes(q)}
+              createLabel={(q) => `「${q}」を新しい分類軸として追加`}
+              footer={
+                <MenuAction
+                  icon={<Settings className="size-3.5" />}
+                  onClick={() => {
+                    close()
+                    openDialog('settings')
+                  }}
+                >
+                  分類軸を管理…
+                </MenuAction>
+              }
+            />
+          )}
+        </Dropdown>
+      </div>
+    </>
   )
 }
 
@@ -66,7 +162,18 @@ function FileSummary({ file }: { file: FileEntry }) {
   )
 }
 
-function AxisSection({ axis, file }: { axis: string; file: FileEntry }) {
+function AxisSection({
+  axis,
+  file,
+  autoFocus,
+  onDismiss
+}: {
+  axis: string
+  file: FileEntry
+  autoFocus: boolean
+  /** Hides this (empty) section; absent for the date axis, which is always shown. */
+  onDismiss?: () => void
+}) {
   const rel = file.relPath
   const paths = useApp((s) => s.meta.files[rel]?.[axis]) ?? NO_PATHS
   const isDateAxis = useApp((s) => s.meta.settings.dateAxis === axis)
@@ -81,7 +188,14 @@ function AxisSection({ axis, file }: { axis: string; file: FileEntry }) {
   return (
     <section className="border-b border-line px-4 py-3" aria-label={`${axis} の分類`}>
       <div className="mb-2 flex items-center gap-2">
-        <h3 className="min-w-0 flex-1 truncate text-[12px] font-semibold">{axis}</h3>
+        <h3 className="flex min-w-0 flex-1 items-center gap-1.5 text-[12px] font-semibold">
+          {isDateAxis ? (
+            <CalendarDays className="size-3.5 shrink-0 text-muted" />
+          ) : (
+            <Tags className="size-3.5 shrink-0 text-muted" />
+          )}
+          <span className="truncate">{axis}</span>
+        </h3>
         {paths.length > 0 && <span className="text-[11px] text-faint tabular-nums">{paths.length}</span>}
       </div>
 
@@ -147,13 +261,13 @@ function AxisSection({ axis, file }: { axis: string; file: FileEntry }) {
         <PathInput
           axis={axis}
           exclude={existing}
-          autoFocus={adding}
-          placeholder={isDateAxis ? '例: 2026/11/20' : `例: ${axis === 'Project' ? 'Project_A/chapter_1' : 'Study/CFD'}`}
+          autoFocus={adding || autoFocus}
+          placeholder={isDateAxis ? '例: 2026/11/20' : '値を入力（/ で階層: 例 親/子）'}
           onSubmit={(p) => {
             add(p)
             setAdding(false)
           }}
-          onCancel={paths.length > 0 ? () => setAdding(false) : undefined}
+          onCancel={paths.length > 0 ? () => setAdding(false) : onDismiss}
         />
       ) : (
         <button
@@ -161,7 +275,7 @@ function AxisSection({ axis, file }: { axis: string; file: FileEntry }) {
           className="inline-flex h-6 items-center gap-1 rounded px-1 text-[12px] text-muted hover:bg-hover hover:text-fg"
         >
           <Plus className="size-3.5" />
-          パスを追加
+          値を追加
         </button>
       )}
 

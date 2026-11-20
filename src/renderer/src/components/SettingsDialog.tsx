@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, Check as CheckIcon, Pencil, Plus, Trash, X } from 'lucide-react'
-import { addAxis, findOrphans, getPaths, moveAxis, removeAxis, removeFiles, renameAxis } from '@shared/meta'
+import { addAxis, axisUsage, findOrphans, getPaths, moveAxis, removeAxis, removeFiles, renameAxis } from '@shared/meta'
 import { FS_AXIS } from '@shared/tree'
 import type { DateSource } from '@shared/types'
 import { api } from '../lib/api'
@@ -40,12 +40,7 @@ function AxesSection() {
   const [newAxis, setNewAxis] = useState('')
   const [renaming, setRenaming] = useState<{ from: string; to: string } | null>(null)
 
-  const usage = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const cls of Object.values(meta.files))
-      for (const axis of Object.keys(cls)) counts.set(axis, (counts.get(axis) ?? 0) + 1)
-    return counts
-  }, [meta.files])
+  const usage = useMemo(() => axisUsage(meta), [meta])
 
   const trimmed = newAxis.trim()
   const addError = trimmed && meta.axes.includes(trimmed) ? '同名の軸が既にあります' : null
@@ -78,7 +73,7 @@ function AxesSection() {
       <SectionTitle hint="左ペインのタブに表示される分類軸です。名前の変更は全ファイルに反映されます。">
         分類軸
       </SectionTitle>
-      <ul className="mb-2 divide-y divide-line rounded-lg border border-line">
+      <ul className="mb-2 max-h-64 divide-y divide-line overflow-y-auto rounded-lg border border-line">
         {meta.axes.map((axis, i) => (
           <li key={axis} className="flex h-9 items-center gap-1 px-2">
             {renaming?.from === axis ? (

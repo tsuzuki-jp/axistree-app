@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { dateToAxisPath, parseAxisPath } from './axisPath'
 import {
   addPath,
+  axisUsage,
   createDefaultMeta,
   findOrphans,
   normalizeMeta,
@@ -91,6 +92,19 @@ describe('meta updates', () => {
     meta = removeAxis(meta, 'When')
     expect(meta.files['a.md']).toBeUndefined()
     expect(meta.axes).not.toContain('When')
+  })
+
+  it('counts files per axis, including unused axes', () => {
+    let meta = addPath(createDefaultMeta(), 'a.md', 'Project', ['P'])
+    meta = addPath(meta, 'a.md', 'Project', ['Q'])
+    meta = addPath(meta, 'b.md', 'Project', ['P'])
+    expect(axisUsage(meta)).toEqual(
+      new Map([
+        ['Date', 0],
+        ['Project', 2],
+        ['Content', 0]
+      ])
+    )
   })
 
   it('finds metadata for files that no longer exist', () => {
