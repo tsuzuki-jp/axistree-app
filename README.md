@@ -51,6 +51,29 @@ npm run typecheck
   - Ubuntu 22.04: `sudo apt install libasound2`
   - Ubuntu 24.04: `sudo apt install libasound2t64`
 - WSLg の GPU 描画では一部の SVG（アイコンの円弧）が欠けるため、WSL 上では自動でハードウェアアクセラレーションを無効にしています。有効にしたい場合は `AXISTREE_GPU=1 npm run dev` で起動してください。
+- `npm run dev` / `npm run preview` は Electron を X11（XWayland）で起動します（`--ozone-platform=x11`。Windows・macOS では無視されます）。Electron は Wayland 環境では既定で Wayland を使い、その場合 WSLg では日本語入力が効かないためです。
+- **日本語入力**: Windows の IME は WSL 上のアプリには届きません。WSL 側に fcitx5 + Mozc を入れて使います（Windows 版として PowerShell から起動する場合はこの設定は不要で、Windows の IME がそのまま使えます）。
+
+  ```bash
+  sudo apt install fcitx5 fcitx5-mozc fcitx5-frontend-gtk3 fcitx5-config-qt
+  ```
+
+  `~/.profile`（または `~/.bashrc`）に追記してから WSL を開き直します。
+
+  ```bash
+  export GTK_IM_MODULE=fcitx
+  export QT_IM_MODULE=fcitx
+  export XMODIFIERS=@im=fcitx
+  ```
+
+  fcitx5 を起動し、設定ツールの「入力メソッド」に **Mozc** を追加します（初回のみ）。日本語入力の切り替えは既定で `Ctrl+Space` です。
+
+  ```bash
+  fcitx5 --disable=wayland -d
+  fcitx5-configtool
+  ```
+
+  fcitx5 は WSL を起動するたびに立ち上げる必要があるので、`~/.profile` に `pgrep -x fcitx5 >/dev/null || fcitx5 --disable=wayland -d` を書いておくと楽です。
 
 ## `.axistree.json`
 
