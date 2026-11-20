@@ -23,6 +23,13 @@ import { getRecentWorkspaces, rememberWorkspace } from './appConfig'
 const isWsl = process.platform === 'linux' && /microsoft/i.test(os.release())
 if (isWsl && process.env.AXISTREE_GPU !== '1') app.disableHardwareAcceleration()
 
+/**
+ * Text for OS-drawn title bars. Under WSL those are drawn by WSLg, which has no Japanese fonts and
+ * shows them as boxes, so non-ASCII titles fall back to `ascii` there.
+ */
+const osTitle = (text: string, ascii: string): string =>
+  isWsl && /[^\x20-\x7e]/.test(text) ? ascii : text
+
 protocol.registerSchemesAsPrivileged([
   {
     scheme: FILE_PROTOCOL,
@@ -75,14 +82,14 @@ async function openWorkspace(rootInput: unknown): Promise<WorkspaceSnapshot> {
   workspace = ws
   await rememberWorkspace(root).catch((err) => console.error('[config]', err))
   const name = path.basename(root) || root
-  mainWindow?.setTitle(`${name} — AxisTree`)
+  mainWindow?.setTitle(osTitle(`${name} - AxisTree`, 'AxisTree'))
   return { root, name, scan, meta, warning }
 }
 
 function registerIpc(): void {
   handle(IPC.selectWorkspace, async () => {
     const res = await dialog.showOpenDialog(mainWindow!, {
-      title: 'ワークスペースとして開くフォルダを選択',
+      title: osTitle('ワークスペースとして開くフォルダを選択', 'AxisTree - Open workspace folder'),
       properties: ['openDirectory', 'createDirectory']
     })
     if (res.canceled || res.filePaths.length === 0) return null
