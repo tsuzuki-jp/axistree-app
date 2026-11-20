@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import {
   Check,
   Columns2,
@@ -26,7 +26,8 @@ export function requestEditorFocus(): void {
   focusNextEditor = true
 }
 
-export function Viewer() {
+// memo: the pane has no props, so resizing the side panes does not re-render it.
+export const Viewer = memo(function Viewer() {
   const selected = useApp((s) => s.selectedFile)
   const file = useApp((s) => (s.selectedFile ? s.fileMap.get(s.selectedFile) : undefined))
   const openDialog = useApp((s) => s.openDialog)
@@ -43,7 +44,7 @@ export function Viewer() {
     )
   }
   return <FileViewer key={file.relPath} file={file} />
-}
+})
 
 function FileViewer({ file }: { file: FileEntry }) {
   const kind = fileKind(file.ext)

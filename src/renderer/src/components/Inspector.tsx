@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { CalendarDays, ChevronRight, Pencil, Plus, Settings, Tags, X } from 'lucide-react'
 import { dateToAxisPath, formatAxisPath } from '@shared/axisPath'
 import { addAxis, addPath, axisUsage, removePathAt, replacePathAt } from '@shared/meta'
@@ -9,7 +9,7 @@ import { FileIcon } from './FileIcon'
 import { PathInput } from './PathInput'
 import { Dropdown, MenuAction, SearchMenu } from './SearchMenu'
 
-export function Inspector() {
+export const Inspector = memo(function Inspector() {
   const file = useApp((s) => (s.selectedFile ? s.fileMap.get(s.selectedFile) : undefined))
 
   if (!file) {
@@ -32,7 +32,7 @@ export function Inspector() {
       </div>
     </div>
   )
-}
+})
 
 /**
  * Shows only the axes this file uses (plus the date axis), so the pane stays short no matter how

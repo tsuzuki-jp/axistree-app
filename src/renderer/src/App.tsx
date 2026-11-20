@@ -91,6 +91,9 @@ function Workbench({ onSwitch, busy }: { onSwitch: () => void; busy: boolean }) 
   const [left, setLeft] = useState(() => loadPref('leftWidth', 290))
   const [right, setRight] = useState(() => loadPref('rightWidth', 320))
   const start = useRef({ left, right })
+  // Latest widths for the drag-end handler, which was captured when the drag started.
+  const widths = useRef({ left, right })
+  widths.current = { left, right }
 
   const rescan = async (): Promise<void> => {
     try {
@@ -147,22 +150,16 @@ function Workbench({ onSwitch, busy }: { onSwitch: () => void; busy: boolean }) 
         </aside>
         <Splitter
           onDragStart={() => (start.current = { left, right })}
-          onDrag={(dx) => {
-            const v = clamp(start.current.left + dx, 200, 520)
-            setLeft(v)
-            savePref('leftWidth', v)
-          }}
+          onDrag={(dx) => setLeft(clamp(start.current.left + dx, 200, 520))}
+          onDragEnd={() => savePref('leftWidth', widths.current.left)}
         />
         <section className="min-w-0 flex-1" aria-label="プレビュー">
           <Viewer />
         </section>
         <Splitter
           onDragStart={() => (start.current = { left, right })}
-          onDrag={(dx) => {
-            const v = clamp(start.current.right - dx, 240, 520)
-            setRight(v)
-            savePref('rightWidth', v)
-          }}
+          onDrag={(dx) => setRight(clamp(start.current.right - dx, 240, 520))}
+          onDragEnd={() => savePref('rightWidth', widths.current.right)}
         />
         <aside style={{ width: right }} className="min-w-0 shrink-0" aria-label="分類インスペクター">
           <Inspector />

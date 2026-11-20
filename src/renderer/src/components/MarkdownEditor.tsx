@@ -29,6 +29,8 @@ export function MarkdownEditor({
   const [content, setContent] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const savedRef = useRef('') // what we believe is on disk
+  /** mtime/size of our last write, to recognize the watcher echo of our own auto-save. */
+  const writtenRef = useRef<{ mtimeMs: number; size: number } | null>(null)
   const pendingRef = useRef<string | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -42,8 +44,9 @@ export function MarkdownEditor({
     pendingRef.current = null
     onSaveState('saving')
     try {
-      await api.writeText(rel, text)
+      const entry = await api.writeText(rel, text)
       savedRef.current = text
+      writtenRef.current = { mtimeMs: entry.mtimeMs, size: entry.size }
       onSaveState(pendingRef.current === null ? 'saved' : 'dirty')
     } catch (err) {
       // Keep the text pending so the next edit (or flush) retries.
@@ -89,6 +92,10 @@ export function MarkdownEditor({
     () =>
       api.onWorkspaceChanged(async (change) => {
         if (!change.changed.includes(rel) || pendingRef.current !== null) return
+        // Our own save coming back from the watcher: no need to read the whole file again.
+        const entry = change.updated.find((f) => f.relPath === rel)
+        const written = writtenRef.current
+        if (entry && written && entry.mtimeMs === written.mtimeMs && entry.size === written.size) return
         try {
           const text = await api.readText(rel)
           if (text !== savedRef.current && pendingRef.current === null) {

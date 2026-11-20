@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef } from 'react'
+import { memo, useDeferredValue, useEffect, useMemo, useRef } from 'react'
 import {
   CalendarDays,
   CalendarPlus,
@@ -31,7 +31,7 @@ import { FileIcon } from './FileIcon'
 import { Dropdown, MenuAction, SearchMenu, type MenuItem } from './SearchMenu'
 import { IconButton } from './ui'
 
-export function Explorer() {
+export const Explorer = memo(function Explorer() {
   const files = useApp((s) => s.files)
   const dirs = useApp((s) => s.dirs)
   const meta = useApp((s) => s.meta)
@@ -41,16 +41,17 @@ export function Explorer() {
   const setFilter = useApp((s) => s.setFilter)
   const setExpanded = useApp((s) => s.setExpanded)
   const collapseAll = useApp((s) => s.collapseAll)
+  // Keep typing in the filter box responsive on large trees.
+  const deferredFilter = useDeferredValue(filter)
+  const rootName = workspace?.name ?? ''
 
-  const tree = useMemo(() => {
-    const full =
-      activeAxis === FS_AXIS
-        ? buildFsTree(files, dirs, workspace?.name ?? '')
-        : buildAxisTree(files, meta, activeAxis)
-    return filterTree(full, filter)
-  }, [files, dirs, meta, activeAxis, workspace, filter])
+  const fullTree = useMemo(
+    () => (activeAxis === FS_AXIS ? buildFsTree(files, dirs, rootName) : buildAxisTree(files, meta, activeAxis)),
+    [files, dirs, meta, activeAxis, rootName]
+  )
+  const tree = useMemo(() => filterTree(fullTree, deferredFilter), [fullTree, deferredFilter])
 
-  const filtering = filter.trim().length > 0
+  const filtering = deferredFilter.trim().length > 0
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-panel">
@@ -81,7 +82,7 @@ export function Explorer() {
       <TreeView tree={tree} axis={activeAxis} forceExpand={filtering} />
     </div>
   )
-}
+})
 
 function AxisSwitcher() {
   const meta = useApp((s) => s.meta)
@@ -248,7 +249,7 @@ function FolderRow({ node, axis, depth, forceExpand, selectedFile }: ChildProps)
   return (
     <div role="treeitem" aria-expanded={open}>
       <div
-        className={`group flex h-[26px] items-center gap-1 pr-2 ${
+        className={`tree-row group flex h-[26px] items-center gap-1 pr-2 ${
           isSelected ? 'bg-hover' : 'hover:bg-hover/70'
         }`}
         style={indent(depth)}
@@ -326,7 +327,7 @@ const FileRow = memo(function FileRow({
       data-selected={selected}
       title={file.relPath}
       onClick={() => selectFile(file.relPath)}
-      className={`flex h-[26px] items-center gap-1.5 pr-2 ${
+      className={`tree-row flex h-[26px] items-center gap-1.5 pr-2 ${
         selected ? 'bg-accent-soft text-fg font-medium' : 'hover:bg-hover/70'
       }`}
       style={{ paddingLeft: 8 + depth * 14 + 18 }}

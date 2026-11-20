@@ -1,7 +1,15 @@
 import { useCallback } from 'react'
 
 /** Vertical drag handle. `onDrag` receives the horizontal delta since the drag started. */
-export function Splitter({ onDragStart, onDrag }: { onDragStart: () => void; onDrag: (dx: number) => void }) {
+export function Splitter({
+  onDragStart,
+  onDrag,
+  onDragEnd
+}: {
+  onDragStart: () => void
+  onDrag: (dx: number) => void
+  onDragEnd?: () => void
+}) {
   const onMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault()
@@ -12,12 +20,13 @@ export function Splitter({ onDragStart, onDrag }: { onDragStart: () => void; onD
         window.removeEventListener('mousemove', move)
         window.removeEventListener('mouseup', up)
         document.body.style.cursor = ''
+        onDragEnd?.()
       }
       document.body.style.cursor = 'col-resize'
       window.addEventListener('mousemove', move)
       window.addEventListener('mouseup', up)
     },
-    [onDrag, onDragStart]
+    [onDrag, onDragStart, onDragEnd]
   )
   return (
     <div

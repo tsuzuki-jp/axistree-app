@@ -5,6 +5,8 @@ import { collectPrefixes, suggestPaths } from '@shared/tree'
 import type { AxisPath } from '@shared/types'
 import { useApp } from '../store'
 
+const NO_PREFIXES = new Map<string, number>()
+
 /**
  * Text input for a "/"-separated axis path with suggestions from paths already used on that axis.
  * ↑/↓ choose, Tab completes (and appends "/" to keep drilling down), Enter commits, Esc cancels.
@@ -27,9 +29,10 @@ export function PathInput({
   onCancel?: () => void
 }) {
   const meta = useApp((s) => s.meta)
-  const prefixes = useMemo(() => collectPrefixes(meta, axis), [meta, axis])
   const [value, setValue] = useState(initial)
   const [open, setOpen] = useState(false)
+  // Only scan the metadata while the suggestion list can be shown.
+  const prefixes = useMemo(() => (open ? collectPrefixes(meta, axis) : NO_PREFIXES), [open, meta, axis])
   const [active, setActive] = useState(-1)
   const inputRef = useRef<HTMLInputElement>(null)
   const listId = useId()

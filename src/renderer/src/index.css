@@ -75,6 +75,13 @@ button {
   cursor: default;
 }
 
+/* Rows scrolled out of view skip layout and paint, which keeps large expanded trees and pane
+   resizing smooth. Every row is exactly 26px tall, so the placeholder size is exact. */
+.tree-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 26px;
+}
+
 ::selection {
   background: var(--c-accent-soft);
 }

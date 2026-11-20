@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { createDefaultMeta, getPaths, setPaths } from '@shared/meta'
+import { createDefaultMeta, getPaths } from '@shared/meta'
 import { FS_AXIS, UNCATEGORIZED_KEY, ancestorKeys, autoDatePath } from '@shared/tree'
 import { dirnameRel } from '@shared/relPath'
 import type { WorkspaceChange } from '@shared/ipc'
@@ -25,6 +25,10 @@ export type DialogKind = 'newFile' | 'settings' | null
 
 interface AppState {
   workspace: { root: string; name: string } | null
+  /**
+   * The workspace's file list. Its identity changes only when files are added or removed, so the
+   * tree is not rebuilt on every save; for up-to-date size/timestamps read `fileMap`.
+   */
   files: FileEntry[]
   fileMap: Map<string, FileEntry>
   dirs: string[]
@@ -86,16 +90,23 @@ function scheduleMetaSave(meta: AxisTreeMeta): void {
 
 registerFlusher(flushMeta)
 
-/** Give every file that lacks a date path one derived from its timestamps. */
+/**
+ * Give every file that lacks a date path one derived from its timestamps.
+ * Copies `meta.files` once (not once per file), so bulk dating stays linear.
+ */
 export function withAutoDates(meta: AxisTreeMeta, files: FileEntry[]): AxisTreeMeta {
   const { dateAxis, dateSource } = meta.settings
-  let next = meta
+  const { fileMap } = useApp.getState()
+  let nextFiles: AxisTreeMeta['files'] | null = null
   for (const f of files) {
-    if (getPaths(next, f.relPath, dateAxis).length === 0) {
-      next = setPaths(next, f.relPath, dateAxis, [autoDatePath(f, dateSource)])
-    }
+    if (getPaths(meta, f.relPath, dateAxis).length > 0) continue
+    const fresh = fileMap.get(f.relPath) ?? f
+    nextFiles ??= { ...meta.files }
+    nextFiles[f.relPath] = { ...nextFiles[f.relPath], [dateAxis]: [autoDatePath(fresh, dateSource)] }
   }
-  return next
+  if (!nextFiles) return meta
+  const axes = meta.axes.includes(dateAxis) ? meta.axes : [...meta.axes, dateAxis]
+  return { ...meta, axes, files: nextFiles }
 }
 
 function indexFiles(files: FileEntry[]): Map<string, FileEntry> {
@@ -168,9 +179,11 @@ export const useApp = create<AppState>((set, get) => ({
       if (get().meta.settings.autoDateOnScan) applyAutoDatesOnScan(c.scan)
     }
     if (c.updated.length > 0) {
+      // Stat-only changes (e.g. every auto-save): refresh fileMap but keep `files` as is, so the
+      // explorer tree is not rebuilt.
       const fileMap = new Map(get().fileMap)
       for (const f of c.updated) if (fileMap.has(f.relPath)) fileMap.set(f.relPath, f)
-      set({ fileMap, files: [...fileMap.values()] })
+      set({ fileMap })
     }
   },
 
